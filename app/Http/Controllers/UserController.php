@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\sendmail;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use App\Services\DataBaseConnection;
 
 
 class UserController extends Controller
@@ -29,23 +30,35 @@ class UserController extends Controller
     {
         $req->validated();
         $mail;
-        $userc = new User;
-        $userc->name=$req->input('Name');
-        $userc->email=$req->input('Email');
-        $mail=$req->input('Email');
-        $userc->password=Hash::make($req->input('Password'));   //convert password in hash
-        $userc->gender=$req->input('Gender');
-        $data=$req->file('Profile')->store('Profile_pic');  //store profile pic
-        $userc->profile=$data;
-        $userc->status=0;
-        $userc->token=$token=rand(100,1000);
-        $result=$userc->save();     //database query
-        if($result){
-            $mess=$this->sendMail($mail,$token);    //call send mail function 
-            return response()->json(['Message' => 'Signup Register '. $mess],200);
+
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $document = array(
+            'name'=>$req->input('Name'),
+            'email'=>$mail=$req->input('Email'),
+            'password'=>Hash::make($req->input('Password')),
+            'gender'=>$req->input('Gender'),
+            'profile'=>$req->file('Profile')->store('Profile_pic'),
+            'status'=>0,
+            'token'=>$token=rand(100,1000),
+            'email_verified_at'=> 0,
+            'friends'=> 0,
+        );
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'email'=>$mail
+        ));
+        if(empty($find))
+        {
+            $insert=$DB->$table->insertOne($document);
+            if(!empty($insert))
+            {
+                $mess=$this->sendMail($mail,$token);    //call send mail function 
+                return response()->json(['Message' =>  $mess],200);
+            }
         }
         else{
-            return response()->json(['Message'=>'Something went wrong..!!!'],400);
+            return response()->json(['Message'=>'Mail Already exist..!!!']);
         }
     }
     /**
@@ -56,10 +69,10 @@ class UserController extends Controller
     {
         $details=[
             'title'=> 'SignUp Verification',
-            'body'=> 'This Link use for login http://127.0.0.1:8000/api/verfi/email/123/ver/'.$mail.'/'.$token
+            'body'=> 'This Link use for login http://127.0.0.1:8000/user/verfi/email/123/ver/'.$mail.'/'.$token
         ]; 
         Mail::to($mail)->send(new sendmail($details));
-        return "Mail send.";
+        return "Check Your Mail.";
     }
     /**
      * this jwtToken generate the jwt toke and return jwt Token
@@ -83,16 +96,24 @@ class UserController extends Controller
      */
     function Verification($mail,$token)
     {
-        $data=DB::table('users')->where('email', $mail)->where('token',$token)->get();     //database query
-        $check=count($data);
-        if($check <= 0)
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'email'=>$mail,
+            'token'=>(int)$token
+        ));
+        //  $a=$insert['_id'];
+        // $id=new \MongoDB\BSON\ObjectId($a);
+        if(!empty($find))
         {
-            return "Your Email not Correct";
+            $update=$DB->$table->updateMany(array("email"=>$mail), 
+            array('$set'=>array('email_verified_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'))));
+            return response(['Message' => 'Your Account has been Verified.']);
         }
         else{
-            DB::table('users')->where('email', $mail)->update(['email_verified_at' => now()]);  //database querie
-            DB::table('users')->where('email', $mail)->update(['updated_at' => now()]); //database query
-            return response(['Message' => 'Your Account has been Verified.']);
+            return "Your Email is not Verfiy :";
         }
     }
     /**
@@ -103,43 +124,48 @@ class UserController extends Controller
      */
     public function login(LogInValidation $req)
     {
-        $password = 0;
-        $status = 0;
-        $verfi=0;
         $req->validated();
-        $user = new User;
-        $user->email = $req->input('Email');
-        $user->password = $req->input('Password');
-        $users = DB::table('users')->where('email', $user->email)->get();
-        foreach ($users as $key)
+        $email = $req->input('Email');
+        $password = $req->input('Password');
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'email'=>$email,
+        ));
+        if(!empty($find))
         {
-            $password = $key->password;
-            $status = $key->status;
-            $verfi =$key->email_verified_at;
-        }
-        if(!empty($verfi))
-        {
-            if(Hash::check($user->password,$password))
+            $passwordGet = $find['password'];
+            $status = $find['status'];
+            $verfi =$find['email_verified_at'];
+            if(!empty($verfi))
             {
-                if($status == 1)
+                if(Hash::check($password,$passwordGet))
                 {
-                    $jwt=$this->jwtToken();
-                    DB::table('users')->where('email', $user->email)->update(['remember_token'=> $jwt]); 
-                    return response(['Message'=>'You are already logged in..!','Access_Token'=>$jwt]);                    
+                    if($status == 1)
+                    {
+                        $jwt=$this->jwtToken();
+                        $update=$DB->$table->updateMany(array("email"=>$email), 
+                            array('$set'=>array('remember_token'=> $jwt)));
+                        return response(['Message'=>'You are already logged in..!','Access_Token'=>$jwt]);                    
+                    }
+                    else{
+                        $jwt=$this->jwtToken();
+                        $update=$DB->$table->updateMany(array("email"=>$email), 
+                            array('$set'=>array('remember_token'=> $jwt,'status' => 1)));
+                        return response(['Message'=>'Now you are logged In','Access_Token'=>$jwt]);     //return response
+                    }
                 }
                 else{
-                    $jwt=$this->jwtToken();
-                    DB::table('users')->where('email', $user->email)->update(['remember_token'=> $jwt]);    //database query
-                    DB::table('users')->where('email', $user->email)->update(['status'=> '1']);     //database query
-                    return response(['Message'=>'Now you are logged In','Access_Token'=>$jwt]);     //return response
+                    return response(['Message'=>'Password Does Not Match']);
                 }
             }
             else{
-                return response(['Message'=>'Data does not exists']);                
+                return response(['Message'=>'Your Email is not Verified. Please Verify your email first.']);
             }
         }
         else{
-            return response(['Message'=>'Your Email is not Verified. Please Verify your email first.']); 
+            return response(['Message'=>'Data does not exists']); 
         }
     }
     /**
@@ -151,9 +177,20 @@ class UserController extends Controller
     {
         $file=$req->file('file')->store('Profile_pic'); //store profile pic
         $pass=Hash::make($req->password);   //convert password in hash
-        DB::table('users')->where('remember_token', $req->token)->update(['name'=> $req->name,
-            'gender'=> $req->gender,'password'=> $pass,'profile'=>$file]); //database querie
-        return response(['Message'=>'Data Update']);
+
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $update=$DB->$table->updateMany(array("remember_token"=>$req->token), 
+            array('$set'=>array('name'=> $req->name,
+                'gender'=> $req->gender,'password'=> $pass,'profile'=>$file)));
+        if(!empty($update))
+        {
+            return response(['Message'=>'Data Update']);
+        }else{
+            return response(['Message'=>'Data Not Update']);
+        }
+        
     }
     /**
      * logout function 
@@ -162,9 +199,19 @@ class UserController extends Controller
      */
     function logout(Request $req)
     {
-        DB::table('users')->where('remember_token', $req->token)->update(['status'=> 0]);   //database querie
-        DB::table('users')->where('remember_token', $req->token)->update(['remember_token'=> null]);    //database querie
-        return response(['Message'=>'Logout']);
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $update=$DB->$table->updateMany(array("remember_token"=>$req->token), 
+            array('$set'=>array('status'=> 0,'remember_token'=> null)));
+
+        if(!empty($update))
+        {
+            return response(['Message'=>'Logout']);
+        }
+        else{
+            return response(['Message'=>'Error:::']);
+        }
     }
     /**
      * forgetPassword function forget the password through otp 
@@ -173,23 +220,22 @@ class UserController extends Controller
     function forgetPassword(ForgetValidation $req)
     {
         $req->validated();
-        $mail=$req->email;
-
-        $data = DB::table('users')->where('email', $mail)->get();
-        
-        $num = count($data);
-        
-        if($num>0)
+        $email=$req->email;
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'email'=>$email,
+        ));
+        if(!empty($find))
         {
-            foreach ($data as $key)
-            {
-                $verfi =$key->email_verified_at;
-            }
+            $verfi =$find['email_verified_at'];
             if(!empty($verfi))
             {
                 $otp=rand(1000,9999);
-                DB::table('users')->where('email', $mail)->update(['token'=> $otp]);
-                return response($this->sendMailForgetPassword($mail,$otp));
+                $update=$DB->$table->updateMany(array('email'=> $email), 
+                array('$set'=>array('token'=> $otp)));
+                return response($this->sendMailForgetPassword($email,$otp));
             }
             else{
                 return response(['Message'=>'User not Exists']);
@@ -218,21 +264,23 @@ class UserController extends Controller
     function changePassword(ChangePasswordValidation $req)
     {
         $req->validated();
-        $mail=$req->email;
+        $email=$req->email;
         $token=$req->otp;
         $pass=Hash::make($req->password);
-        $data = DB::table('users')->where('email', $mail)->get();
-        $num = count($data);
-        
-        if($num>0)
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'email'=>$email,
+        ));
+ 
+        if(!empty($find))
         {
-            foreach ($data as $key)
-            {
-                $token1 =$key->token;
-            }
+            $token1 =$find['token'];
             if($token1==$token)
             {
-                DB::table('users')->where('email', $mail)->update(['password'=> $pass]);
+                $update=$DB->$table->updateMany(array('email'=> $email), 
+                array('$set'=>array('password'=> $pass)));
                 return response(['Message'=>'Password Updated : ']);
             }
             else{

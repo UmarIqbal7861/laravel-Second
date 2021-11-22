@@ -8,7 +8,7 @@ use App\Http\Requests\PostValidation;
 use App\Http\Requests\PostUpdateValidation;
 use App\Http\Requests\PostDeleteValidation;
 use App\Http\Requests\SearchPostValidation;
-
+use App\Services\DataBaseConnection;
 
 
 class PostController extends Controller
@@ -22,14 +22,19 @@ class PostController extends Controller
     function post(PostValidation $req)
     {
         $req->validated();
-        $data = DB::table('users')->where('remember_token', $req->token)->get();
-        $check=count($data);
-        if($check>0)    //if condition check user is login in or not
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))    //if condition check user is login in or not
         {
-            $id1=$data[0]->u_id;
+            $user_id=$find['_id'];
             $file=$req->file('file')->store('post');    //store post
-            $val=array('user_id'=>$id1,'file'=>$file,'access'=>$req->access);
-            DB::table('posts')->insert($val);       //database querie
+            $table='posts';
+            $document=array('user_id'=>$user_id,'file'=>$file,'access'=>$req->access);
+            $insert=$DB->$table->insertOne($document);
             return response(['Message'=>'Post Success']);
         }
         else{
@@ -40,15 +45,21 @@ class PostController extends Controller
     function postupdate(PostUpdateValidation $req)
     {
         $req->validated();
-        $data = DB::table('users')->where('remember_token', $req->token)->get();
-        $check=count($data);
-        if($check>0)    //if condition check user is login in or not
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))    //if condition check user is login in or not
         {
-            $id=$data[0]->u_id;
+            $user_id=$find['_id'];
             $file=$req->file('file')->store('post');    //store post
-            $ch=DB::table('posts')->where(['p_id'=> $req->pid,'user_id'=>$id])->update(['file'=> $file,
-                'access'=> $req->access,]);    //database querie   //database querie 
-            if($ch)
+            $table='posts';
+            $id=new \MongoDB\BSON\ObjectId($req->pid);
+            $update=$DB->$table->updateMany(array('_id'=> $id,'user_id'=>$user_id), 
+                array('$set'=>array('file'=> $file,'access'=> $req->access)));
+            if(!empty($update))
             {
                 return response(['Message'=>'Data Update']);
             }
@@ -62,14 +73,19 @@ class PostController extends Controller
     {
 
         $req->validated();
-        $data = DB::table('users')->where('remember_token', $req->token)->get();
-        $check=count($data);
-        if($check>0)    //if condition check user is login in or not
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))    //if condition check user is login in or not
         {
-            $id=$data[0]->u_id;
-            DB::table('comments')->where(['p_id'=>$req->pid])->delete();
-            $ch=DB::table('posts')->where(['p_id'=>$req->pid,'user_id'=>$id])->delete(); //database querie
-            if($ch)
+            $user_id=$find['_id'];
+            $table='posts';
+            $id=new \MongoDB\BSON\ObjectId($req->pid);
+            $delete=$DB->$table->deleteOne(array('_id'=> $id,'user_id'=>$user_id));
+            if(!empty($delete))
             {
                 return response(['Message'=>'Data Delete']);
             }

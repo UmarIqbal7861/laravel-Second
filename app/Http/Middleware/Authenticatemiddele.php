@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\DataBaseConnection;
 class Authenticatemiddele
 {
     /**
@@ -20,9 +21,13 @@ class Authenticatemiddele
      */
     public function handle(Request $request, Closure $next)
     {
-        $data = DB::table('users')->where('remember_token', $request->token)->get();//check token database querie
-        $check=count($data);
-        if($check>0)
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $request->token,
+        ));
+        if(!empty($find))
         {
             return $next($request);
         }
