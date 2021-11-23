@@ -42,7 +42,7 @@ class UserController extends Controller
             'status'=>0,
             'token'=>$token=rand(100,1000),
             'email_verified_at'=> 0,
-            'friends'=> 0,
+            'friends'=> [],
         );
         $table='users';
         $find=$DB->$table->findOne(array(

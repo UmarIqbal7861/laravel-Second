@@ -33,7 +33,7 @@ class CommentController extends Controller
             $file=$req->file('file')->store('comment');    //store comment
             $id=new \MongoDB\BSON\ObjectId($req->pid);
             $comment_id=new \MongoDB\BSON\ObjectId();
-            $comment=array('_id'=>$comment,'user_id'=>$user_id,'comment'=>$req->comment,'file'=>$file);
+            $comment=array('_id'=>$comment_id,'user_id'=>$user_id,'comment'=>$req->comment,'file'=>$file);
             $update=$DB->$table->updateOne(["_id"=>$id],['$push'=>["comments" => $comment]]);
             if(!empty($update))
             {
@@ -56,18 +56,15 @@ class CommentController extends Controller
         $find=$DB->$table->findOne(array(
             'remember_token'=> $req->token,
         ));
-        //$data = DB::table('users')->where('remember_token', $req->token)->get();
-        //$check=count($data);
         if(!empty($find))    //if condition check user is login in or not
         {
-            //$id=$data[0]->u_id;
             $user_id=$find['_id'];
             $file=$req->file('file')->store('comment');    //store comment
-            
-            //$ch=DB::table('comments')->where(['c_id'=> $req->cid,'user_id'=>$id])->update(['comment'=>$req->comment,'file'=> $file]);    //database querie   //database querie 
-            $id=new \MongoDB\BSON\ObjectId($req->cid);
-            $comment=array('comment'=>$req->comment,'file'=>$file);
-            $update=$DB->$table->updateOne(['_id'=>$id,'user_id'=>$user_id],['$push'=>['comments' => $comment]]);
+            $cid=new \MongoDB\BSON\ObjectId($req->cid);
+            $pid=new \MongoDB\BSON\ObjectId($req->pid);
+            $table='posts';
+            $update=$DB->$table->updateOne(['_id'=>$pid, 'comments._id'=>$cid], 
+                ['$set'=>['comments.$.comment'=>$req->comment,'comments.$.file'=>$file]]);
             if(!empty($update))
             {
                 return response(['Message'=>'Data Update']);
@@ -81,15 +78,23 @@ class CommentController extends Controller
     function commentDelete(CommentDeleteValidation $req)
     {
         $req->validated();
-        $data = DB::table('users')->where('remember_token', $req->token)->get();
-        $check=count($data);
-        if($check>0)    //if condition check user is login in or not
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))    //if condition check user is login in or not
         {
-            $id=$data[0]->u_id;
-            $ch=DB::table('comments')->where(['c_id'=> $req->cid , 'user_id' =>$id])->delete(); //database querie
-            if($ch)
+            $user_id=$find['_id'];
+            $table='posts';
+            $cid=new \MongoDB\BSON\ObjectId($req->cid);
+            $pid=new \MongoDB\BSON\ObjectId($req->pid);
+            $delete=$DB->$table->updateOne(['_id'=>$pid, 'comments._id'=>$cid], 
+                ['$pull'=>['comments'=>['_id'=>$cid]]]);
+            if(!empty($delete))
             {
-                return response(['Message'=>'Data Update']);
+                return response(['Message'=>'Comment Delete']);
             }
             else{
                 return response(['Message'=>'Not Allow to Delet any other person post']);

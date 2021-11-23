@@ -43,7 +43,7 @@ class AddFriendController extends Controller
                         $check=$find['friends'];
                         foreach($check as $key)
                         {
-                            if($user2_id==$key)
+                            if($user2_id==$key['friend'])
                             {
                                 $check2=false;
                                 break;
@@ -51,7 +51,10 @@ class AddFriendController extends Controller
                         }
                         if($check2==true)
                         {
-                            $update=$DB->$table->updateOne(["_id"=>$user_id],['$push'=>["friends" => $user2_id]]);
+                            $add=array('friend'=>$user2_id);
+                            $add2=array('friend'=>$user_id);
+                            $update=$DB->$table->updateOne(["_id"=>$user_id],['$push'=>["friends" => $add]]);
+                            $update=$DB->$table->updateOne(["_id"=>$user2_id],['$push'=>["friends" => $add2]]);
                             if(!empty($update))
                             {
                                 return response(['Message'=>'Friend Add']);
@@ -88,26 +91,19 @@ class AddFriendController extends Controller
         $table='users';
         $find=$DB->$table->findOne(array(
             'remember_token'=> $req->token,
-        )); 
-        // $data = DB::table('users')->where('remember_token', $req->token)->get();    //database querie
-        // $check=count($data);    
+        ));     
         if(!empty($find))    //if condition check user is login in or not
         {
-            //$id1=$data[0]->u_id;
-            $user_id=$find['user1'];
+            $user_id=$find['_id'];
             $find2=$DB->$table->findOne(array(
                 'email'=> $req->email,
-            ));
-            // $data1 = DB::table('users')->where('email', $req->email)->get();    //database querie
-            // $check1=count($data1);
+            ));  
             if(!empty($find2)) //if condition check 2nd user exit or not
             {   
-                //$id2=$data1[0]->u_id;
-                $user2_id=$find2['user2'];
-                dd($user_id,$user2_id);
-                $delete=$DB->$table->deleteOne(array('_id'=> $id,'user_id'=>$user_id));
-                //$data3=DB::table('friends')->where(['user1'=> $id1 , 'user2' =>$id2])->delete();
-                if($data3)
+                $user2_id=$find2['_id'];
+                $delete=$DB->$table->updateOne(['_id'=>$user_id, 'friends.friend'=>$user2_id], 
+                ['$pull'=>['friends'=>['friend'=>$user2_id]]]);
+                if(!empty($delete))
                 {
                     return response(['Message'=>'Friend Remove Conform']);
                 }

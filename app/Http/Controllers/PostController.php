@@ -8,6 +8,7 @@ use App\Http\Requests\PostValidation;
 use App\Http\Requests\PostUpdateValidation;
 use App\Http\Requests\PostDeleteValidation;
 use App\Http\Requests\SearchPostValidation;
+use App\Http\Requests\FindPostValidation;
 use App\Services\DataBaseConnection;
 
 
@@ -97,47 +98,101 @@ class PostController extends Controller
     /**
      * checkFriend function check friend exists in friend list
      */
-    function checkFriend($itset,$friend_id){
-        $r = DB::table('friends')->where('user1',$itset)->where('user2',$friend_id)->get();
-        if (count($r) > 0){
-            return true;
+    function checkFriend($itset,$friend_id)
+    {
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            '_id'=> $itset,
+        ));
+        $friend=$find['friends'];
+        foreach($friend as $key)
+        {
+            if($itset==$key['friend'])
+            {
+                return true;
+            }
         }
-        else{
-            return false;
-        }
+        return false;
     }
 
     function read(Request $req)
     {
-        $data = DB::table('users')->where('remember_token', $req->token)->get();    //database querie
-        $check=count($data);    //if condition check user is login in or not
-        if($check>0)
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))
         {
-            $id2=$data[0]->u_id;
-            $data=DB::table('posts')->where(['access'=>'public'])->get();    //access the public post
-            foreach($data as $key1)
+            $user_id=$find['_id'];
+            $table='posts';
+            $find2=$DB->$table->find(array(
+                'access'=>'public'
+            ));
+            if(!empty($find2))
             {
-                $pid = $key1->p_id;
-                print_r ($key1);
-                $da=DB::table('comments')->where('post_id',$pid)->get();
-                print_r($da);
+                $objects = json_decode(json_encode($find2->toArray(),true));
+                echo json_encode($objects);
             }
-            $data2=DB::table('posts')->where(['access'=>'private'])->get();  //access the private post
-            foreach($data2 as $key)
+            $find3=$DB->$table->find(array(
+                'access'=>'private'
+            ));
+            $objects = json_decode(json_encode($find3->toArray(),true));
+            if(!empty($find3))
             {
-                $id = $key->user_id;
-                $pid = $key->p_id;
-                if($this->checkFriend($id2,$id))
+                foreach($objects as $key1)
                 {
-                    print_r ($key);
-                    $da=DB::table('comments')->where('post_id',$pid)->get();
-                    print_r($da);
+                    $user2_id=$key1['_id'];
+                    if($this->checkFriend($user_id,$user2_id))
+                    {
+                        echo json_encode($key1);
+                    }
                 }
             }
-            //return response([$data]);
         }
         else{
             return response(['Message'=>'Please login First!!']);
+        }
+    }
+    function findpost(FindPostValidation $req)
+    {
+        $create=new DataBaseConnection();
+        $DB=$create->connect();
+        $table='users';
+        $find=$DB->$table->findOne(array(
+            'remember_token'=> $req->token,
+        ));
+        if(!empty($find))
+        {
+            $user_id=$find['_id'];
+            $table='posts';
+            $id=new \MongoDB\BSON\ObjectId($req->pid);
+            $find=$DB->$table->findOne(array(
+                '_id'=>$id,
+            ));
+            if(!empty($find))
+            {
+                $access=$find['access'];
+                if($access=='public')
+                {
+                    echo json_encode($find);
+                }
+                else{
+                    
+                    $user2_id=$find['_id'];
+                    
+                    if($this->checkFriend($user_id,$user2_id))
+                    {
+                        echo json_encode($find);
+                    }
+                    else{
+                        return response(['Message'=>'Post Not Found!!']);
+                    }
+                }
+            }
         }
     }
 }
