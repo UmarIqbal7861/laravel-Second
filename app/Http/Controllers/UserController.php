@@ -291,20 +291,4 @@ class UserController extends Controller
             return response(['Message'=>'Please Enter Valid Mail : ']); 
         }
     }
-
-    function user_details_and_posts_details(Request $req)
-    {
-        $token = $req->token;
-        $data = DB::table('users')->where(['remember_token' => $token])->get();
-        $uid = $data[0]->u_id;
-        $check = count($data);
-        if($check >0)
-        {
-            $data = User::with(['AllUserPost', 'AllUsersPostComments'])->where('u_id', $uid)->get();
-            return response(['Message' => $data]);
-        }
-        else{
-            return response(['Message' => 'Token not found orexpired...!!!!']);
-        }
-    }
 }

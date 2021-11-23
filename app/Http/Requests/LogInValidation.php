@@ -24,8 +24,8 @@ class LogInValidation extends FormRequest
     public function rules()
     {
         return [
-            'Email' => 'required|email',
-            'Password' => 'required|min:8|string', 
+            'email' => 'required|email',
+            'password' => 'required|min:8|string', 
         ];
     }
 }

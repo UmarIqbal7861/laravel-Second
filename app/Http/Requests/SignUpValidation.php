@@ -24,10 +24,10 @@ class SignUpValidation extends FormRequest
     public function rules()
     {
         return [
-            'Name' => 'required|string',
-            'Email' => 'required|email',
-            'Password' => 'required|min:8|max:20',
-            'Gender' => 'required|Alpha',
+            'name' => 'required|string',
+            'email' => 'required|email',
+            'password' => 'required|min:8|max:20',
+            'gender' => 'required|Alpha',
         ];
     }
 }

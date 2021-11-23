@@ -109,7 +109,7 @@ class PostController extends Controller
         $friend=$find['friends'];
         foreach($friend as $key)
         {
-            if($itset==$key['friend'])
+            if($friend_id==$key['friend'])
             {
                 return true;
             }
@@ -140,10 +140,9 @@ class PostController extends Controller
             $find3=$DB->$table->find(array(
                 'access'=>'private'
             ));
-            $objects = json_decode(json_encode($find3->toArray(),true));
             if(!empty($find3))
             {
-                foreach($objects as $key1)
+                foreach($find3 as $key1)
                 {
                     $user2_id=$key1['_id'];
                     if($this->checkFriend($user_id,$user2_id))

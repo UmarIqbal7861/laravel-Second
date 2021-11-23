@@ -103,6 +103,8 @@ class AddFriendController extends Controller
                 $user2_id=$find2['_id'];
                 $delete=$DB->$table->updateOne(['_id'=>$user_id, 'friends.friend'=>$user2_id], 
                 ['$pull'=>['friends'=>['friend'=>$user2_id]]]);
+                $delete=$DB->$table->updateOne(['_id'=>$user2_id, 'friends.friend'=>$user_id], 
+                ['$pull'=>['friends'=>['friend'=>$user_id]]]);
                 if(!empty($delete))
                 {
                     return response(['Message'=>'Friend Remove Conform']);

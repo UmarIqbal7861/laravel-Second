@@ -40,6 +40,4 @@ Route::group(['middleware'=>"checktoken"],function()
     Route::post('update',[UserController::class, 'update']);
 
     Route::post('logout',[UserController::class, 'logout']);
-
-    Route::post('userpostscomments', [UserController::class, 'user_details_and_posts_details']);
 });
